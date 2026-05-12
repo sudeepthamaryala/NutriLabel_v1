@@ -1,0 +1,64 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://nutrition_ai:nutrition_ai_password@db:5432/nutrition_ai}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    # Run migrations first, then start the API server.
+    # `alembic upgrade head` applies any pending migrations safely.
+    # It is idempotent — if migrations are already up-to-date, it does nothing.
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload" 
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - ./models:/models
+      - ./uploads:/uploads
+    restart: unless-stopped
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: nutrition_ai
+      POSTGRES_PASSWORD: nutrition_ai_password
+      POSTGRES_DB: nutrition_ai
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/app/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutrition_ai -d nutrition_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    
+  # worker:
+  #     build:
+  #       context: ./backend
+  #     command: python-m  app.worker
+  #     depends_on:
+  #         - redis
+  #         - db
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  redis_data:
