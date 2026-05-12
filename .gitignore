@@ -1,0 +1,94 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+!**/.env.example
+credentials/
+**/credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.csr
+*service-account*.json
+*service_account*.json
+*google-credentials*.json
+*google_credentials*.json
+*gcp-credentials*.json
+*gcp_credentials*.json
+*supabase*.secret*
+*jwt*.secret*
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+backend/venv/
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker and local runtime
+docker-compose.override.yml
+docker-compose.*.override.yml
+*.log
+logs/
+tmp/
+temp/
+uploads/
+
+# ML and data artifacts
+checkpoints/
+**/checkpoints/
+datasets/
+**/datasets/
+.cache/
+**/.cache/
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+*.onnx
+*.h5
+*.joblib
+*.pkl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Flutter/Dart generated output
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# Node/package manager caches if added later
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
