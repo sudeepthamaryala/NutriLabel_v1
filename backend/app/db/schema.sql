@@ -112,6 +112,7 @@ create table if not exists rag_chunks (
   source_url text,
   source_type rag_source_type not null default 'knowledge',
   chunk_text text not null,
+  content text generated always as (chunk_text) stored,
   embedding vector(384) not null,
   metadata jsonb not null default '{}'::jsonb,
   user_id uuid references users(id) on delete cascade,

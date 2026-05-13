@@ -24,8 +24,15 @@ async def embed(data: EmbedRequest) -> EmbedResponse:
 
     try:
         embedding = await asyncio.to_thread(embed_text, text)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="embedding generation failed",
+        ) from exc
 
     if len(embedding) != EMBEDDING_DIMENSIONS:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="embedding dimension mismatch")

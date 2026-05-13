@@ -213,5 +213,9 @@ async def _embed_label_chunk(*, db: AsyncSession, user_id, ocr_text: str, nutrit
             source_type=RagSourceType.label_ocr,
             user_id=user_id,
         )
-    except Exception:
-        logger.warning("label_embedding_store_failed request_id=%s", request_id)
+    except Exception as exc:
+        logger.exception("label_embedding_store_failed request_id=%s", request_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not store label OCR embedding.",
+        ) from exc

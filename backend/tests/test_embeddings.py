@@ -1,4 +1,5 @@
 from app.core.embeddings import embed_text
+import pytest
 
 
 def test_embed_text_returns_384_vector():
@@ -10,4 +11,5 @@ def test_embed_text_returns_384_vector():
 
 
 def test_embed_text_empty_returns_empty_list():
-    assert embed_text("   ") == []
+    with pytest.raises(ValueError):
+        embed_text("   ")

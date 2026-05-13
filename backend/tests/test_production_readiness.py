@@ -161,24 +161,7 @@ def test_production_config_rejects_wildcard_cors():
     assert "CORS_ORIGINS" in str(exc.value)
 
 
-def test_rag_embedding_invalid_shape_falls_back_to_no_random_chunks(monkeypatch):
-    async def fake_retry(operation, **kwargs):
-        return httpx.Response(200, json={"embedding": [0.1, 0.2]})
-
-    monkeypatch.setattr("app.services.rag_service.retry_async", fake_retry)
-    monkeypatch.setattr(
-        "app.services.rag_service.get_settings",
-        lambda: type(
-            "Settings",
-            (),
-            {
-                "embedding_service_url": "http://example.test/embed",
-                "external_service_timeout_seconds": 0.01,
-                "external_retry_attempts": 1,
-            },
-        )(),
-    )
-
+def test_rag_embedding_empty_query_falls_back_to_no_random_chunks():
     from app.services.rag_service import _embed_query
 
-    assert asyncio.run(_embed_query("sugar sodium")) is None
+    assert asyncio.run(_embed_query("   ")) is None

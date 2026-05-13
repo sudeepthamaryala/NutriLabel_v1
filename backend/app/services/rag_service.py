@@ -1,14 +1,11 @@
 import asyncio
 import re
 
-import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.embeddings import EMBEDDING_DIMENSIONS, embed_text
-from app.core.retry import retry_async
-from app.core.settings import get_settings
 from app.models.enums import RagSourceType
 from app.models.rag import RagChunk
 from app.schemas.analyse import NutritionData
@@ -60,34 +57,13 @@ async def _retrieve_by_vector(*, db: AsyncSession, embedding: list[float], limit
 
 
 async def _embed_query(query_text: str) -> list[float] | None:
-    settings = get_settings()
-    if not query_text:
+    cleaned = query_text.strip()
+    if not cleaned:
         return None
 
-    async def request_embedding() -> httpx.Response:
-        async with httpx.AsyncClient(timeout=settings.external_service_timeout_seconds) as client:
-            response = await client.post(settings.embedding_service_url, json={"text": query_text})
-            response.raise_for_status()
-            return response
-
-    if settings.embedding_service_url:
-        try:
-            response = await retry_async(request_embedding, retries=settings.external_retry_attempts)
-            payload = response.json()
-        except (httpx.HTTPError, ValueError):
-            return None
-
-        embedding = payload.get("embedding")
-        if not isinstance(embedding, list) or len(embedding) != 384:
-            return None
-        try:
-            return [float(value) for value in embedding]
-        except (TypeError, ValueError):
-            return None
-
     try:
-        return await asyncio.to_thread(embed_text, query_text)
-    except (RuntimeError, ValueError):
+        return await asyncio.to_thread(embed_text, cleaned)
+    except Exception:
         return None
 
 
@@ -99,6 +75,9 @@ async def embed_and_store_chunk(
     user_id=None,
     disease_tag: str | None = None,
 ) -> RagChunk:
+    if text is None:
+        raise ValueError("text must be a non-empty string")
+
     cleaned = text.strip()
     if not cleaned:
         raise ValueError("text must be a non-empty string")
