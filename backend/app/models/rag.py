@@ -37,7 +37,7 @@ disease_tag (nullable)
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text, func, text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -144,4 +144,92 @@ class RagChunk(Base):
         "User",
         foreign_keys=[user_id],
         viewonly=True,
+    )
+
+
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunks"
+    __table_args__ = (
+        CheckConstraint("length(trim(chunk_text)) > 0", name="knowledge_chunks_text_not_blank"),
+        CheckConstraint("length(trim(source)) > 0", name="knowledge_chunks_source_not_blank"),
+        Index("idx_knowledge_chunks_source", "source"),
+        Index("idx_knowledge_chunks_metadata_gin", "metadata", postgresql_using="gin"),
+        Index(
+            "idx_knowledge_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+            postgresql_with={"m": 16, "ef_construction": 64},
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)
+    metadata_: Mapped[dict] = mapped_column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class DiseaseKnowledgeChunk(Base):
+    __tablename__ = "disease_knowledge_chunks"
+    __table_args__ = (
+        CheckConstraint(
+            "length(trim(evidence_text)) > 0",
+            name="disease_knowledge_chunks_evidence_not_blank",
+        ),
+        CheckConstraint(
+            "length(trim(disease_tag)) > 0",
+            name="disease_knowledge_chunks_disease_not_blank",
+        ),
+        Index("idx_disease_knowledge_chunks_disease_tag", "disease_tag"),
+        Index("idx_disease_knowledge_chunks_metadata_gin", "metadata", postgresql_using="gin"),
+        Index(
+            "idx_disease_knowledge_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+            postgresql_with={"m": 16, "ef_construction": 64},
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    disease_tag: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_code: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_text: Mapped[str] = mapped_column(Text, nullable=False)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)
+    metadata_: Mapped[dict] = mapped_column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

@@ -16,22 +16,23 @@ class ValidatedImage:
 
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+UNSPECIFIED_CONTENT_TYPES = {"", "application/octet-stream"}
 
 
 async def validate_upload(file: UploadFile) -> ValidatedImage:
     validate_upload_metadata(file)
     content = await file.read()
-    validate_image_bytes(content, expected_content_type=file.content_type or "")
-    return ValidatedImage(content=content, content_type=file.content_type or "", filename=file.filename)
+    detected_content_type = validate_image_bytes(content, expected_content_type=file.content_type or "")
+    return ValidatedImage(content=content, content_type=detected_content_type, filename=file.filename)
 
 
 def validate_upload_metadata(file: UploadFile) -> None:
     content_type = file.content_type or ""
-    if content_type not in ALLOWED_CONTENT_TYPES:
+    if content_type not in ALLOWED_CONTENT_TYPES and content_type not in UNSPECIFIED_CONTENT_TYPES:
         raise ImageValidationError("Image must be JPEG, PNG, or WEBP.")
 
 
-def validate_image_bytes(content: bytes, expected_content_type: str | None = None) -> None:
+def validate_image_bytes(content: bytes, expected_content_type: str | None = None) -> str:
     from app.core.settings import get_settings
 
     if not content:
@@ -44,8 +45,15 @@ def validate_image_bytes(content: bytes, expected_content_type: str | None = Non
 
         with Image.open(BytesIO(content)) as image:
             detected_content_type = Image.MIME.get(image.format or "")
-            if expected_content_type and detected_content_type != expected_content_type:
+            if detected_content_type not in ALLOWED_CONTENT_TYPES:
+                raise ImageValidationError("Image must be JPEG, PNG, or WEBP.")
+            if (
+                expected_content_type
+                and expected_content_type not in UNSPECIFIED_CONTENT_TYPES
+                and detected_content_type != expected_content_type
+            ):
                 raise ImageValidationError("Image content does not match the declared MIME type.")
             image.verify()
+            return detected_content_type
     except (UnidentifiedImageError, OSError):
         raise ImageValidationError("Uploaded file is not a valid image.")

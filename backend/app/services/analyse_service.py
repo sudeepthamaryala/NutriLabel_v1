@@ -1,12 +1,15 @@
 import logging
 from dataclasses import dataclass
+from decimal import Decimal
+from types import SimpleNamespace
+from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import ActivityLevel, HealthGoal, RagSourceType, Sex
 from app.models.user import User
-from app.models.enums import RagSourceType
 from app.schemas.analyse import AnalyseResponse
 from app.services import chat_service, nutrition_parser, ocr_service, rag_service, storage_service
 from app.services.image_service import ImageValidationError, validate_upload
@@ -28,7 +31,7 @@ class ParsedNutritionImage:
 async def analyse_image(
     *,
     db: AsyncSession,
-    current_user: User,
+    current_user: User | None,
     image: UploadFile,
     question: str | None,
     request_id: str,
@@ -39,37 +42,58 @@ async def analyse_image(
     temporary key and delete it on any exception before chat persistence commits.
     This keeps failed analyses from leaving orphaned storage artifacts.
     """
-    profile = await get_required_health_profile(db=db, current_user=current_user)
+    profile = (
+        await get_required_health_profile(db=db, current_user=current_user)
+        if current_user
+        else _anonymous_profile()
+    )
     parsed_image = await ocr_and_parse_nutrition(
         image=image,
         request_id=request_id,
     )
     nutrition = parsed_image.nutrition
     ocr_result = parsed_image.ocr_result
-    await _embed_label_chunk(
-        db=db,
-        user_id=current_user.id,
-        ocr_text=ocr_result.text,
-        nutrition=nutrition.model_dump(),
-        request_id=request_id,
-    )
+    if current_user:
+        await _embed_label_chunk(
+            db=db,
+            user_id=current_user.id,
+            ocr_text=ocr_result.text,
+            nutrition=nutrition.model_dump(),
+            request_id=request_id,
+        )
 
-    rag_context = await rag_service.retrieve_relevant_chunks(
+    rag_context = await rag_service.retrieve_context(
         db=db,
-        question=question,
-        nutrition=nutrition,
+        user_question=question,
+        user_profile=profile,
+        nutrition_json=nutrition,
+    )
+    prompt = rag_service.build_prompt(
+        nutrition_json=nutrition,
+        retrieved_context=rag_context,
+        user_question=question,
+        user_profile=profile,
     )
     inference = await _analyse_with_inference(
         nutrition=nutrition,
         profile=profile,
         question=question,
         rag_context=rag_context,
+        prompt=prompt,
         request_id=request_id,
     )
 
     confidence = min(inference.confidence, ocr_result.confidence)
     assistant_content = inference.answer.summary
     user_content = question.strip() if question and question.strip() else "Analyse this nutrition label."
+    if current_user is None:
+        return AnalyseResponse(
+            session_id=uuid4(),
+            nutrition=nutrition,
+            answer=inference.answer,
+            confidence=confidence,
+        )
+
     stored_image = await _store_image_after_success(
         image_bytes=parsed_image.content,
         content_type=parsed_image.content_type,
@@ -148,6 +172,22 @@ async def get_required_health_profile(*, db: AsyncSession, current_user: User):
         raise
 
 
+def _anonymous_profile():
+    return SimpleNamespace(
+        user_id=uuid4(),
+        age=30,
+        weight_kg=Decimal("70.00"),
+        height_cm=Decimal("170.00"),
+        sex=Sex.prefer_not_to_say,
+        activity_level=ActivityLevel.moderate,
+        goal=HealthGoal.weight_maintenance,
+        allergies=[],
+        diseases=[],
+        dietary_preferences=[],
+        nutrition_goals=None,
+    )
+
+
 async def _validate_image(image: UploadFile):
     try:
         return await validate_upload(image)
@@ -168,7 +208,8 @@ async def _analyse_with_inference(
     nutrition,
     profile,
     question: str | None,
-    rag_context: list[str],
+    rag_context: dict,
+    prompt: str,
     request_id: str,
 ) -> InferenceResult:
     try:
@@ -177,6 +218,7 @@ async def _analyse_with_inference(
             profile=profile,
             question=question,
             rag_context=rag_context,
+            prompt=prompt,
         )
     except Exception as exc:
         logger.exception("inference_failed request_id=%s", request_id)

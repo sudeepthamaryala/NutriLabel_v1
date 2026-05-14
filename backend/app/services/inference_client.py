@@ -35,7 +35,8 @@ async def analyse_nutrition(
     nutrition: NutritionData,
     profile: HealthProfile,
     question: str | None,
-    rag_context: list[str],
+    rag_context: dict,
+    prompt: str,
 ) -> InferenceResult:
     settings = get_settings()
     if settings.inference_service_url:
@@ -48,6 +49,7 @@ async def analyse_nutrition(
                 profile=profile,
                 question=question,
                 rag_context=rag_context,
+                prompt=prompt,
             )
         except InferenceClientError:
             logger.warning("inference_failed reason=external_failure")
@@ -88,7 +90,8 @@ async def _call_external_inference(
     nutrition: NutritionData,
     profile: HealthProfile,
     question: str | None,
-    rag_context: list[str],
+    rag_context: dict,
+    prompt: str,
 ) -> InferenceResult:
     payload = {
         "task": "analyse",
@@ -96,6 +99,7 @@ async def _call_external_inference(
         "profile": _profile_payload(profile),
         "question": question,
         "rag_context": rag_context,
+        "prompt": prompt,
     }
     async def request_inference() -> httpx.Response:
         async with httpx.AsyncClient(timeout=timeout) as client:

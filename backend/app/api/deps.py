@@ -2,6 +2,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,20 @@ async def get_current_user(
             detail="User is authenticated but not registered in this API",
         )
     return user
+
+
+async def get_optional_current_user(
+    authorization: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    credentials = HTTPAuthorizationCredentials(scheme=scheme, credentials=token)
+    claims = await get_token_claims(credentials)
+    result = await db.execute(select(User).where(User.id == UUID(claims.user_id)))
+    return result.scalar_one_or_none()
 
 
 async def get_request_id(request: Request, x_request_id: str | None = Header(default=None)) -> str:

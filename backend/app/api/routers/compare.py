@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_request_id
+from app.api.deps import get_optional_current_user, get_request_id
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.compare import CompareResponse
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/compare", tags=["compare"])
 async def compare(
     images: Annotated[list[UploadFile], File(...)],
     question: Annotated[str | None, Form()] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
     request_id: str = Depends(get_request_id),
 ) -> CompareResponse:

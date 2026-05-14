@@ -87,23 +87,63 @@ class PickedImage {
   final File? file;
   final Uint8List? bytes;
   final String name;
+  final String contentType;
 
   const PickedImage({
     this.file,
     this.bytes,
     required this.name,
+    required this.contentType,
   });
 
   bool get isValid => kIsWeb ? bytes != null : file != null;
 
   /// Picks an image from [XFile] and stores the right representation.
   static Future<PickedImage> fromXFile(dynamic xfile) async {
-    final filename = (xfile.path as String).split('/').last;
+    final filename = _filenameFromXFile(xfile);
+    final contentType = _contentTypeFromXFile(xfile, filename);
     if (kIsWeb) {
       final b = await xfile.readAsBytes() as Uint8List;
-      return PickedImage(bytes: b, name: filename);
+      return PickedImage(bytes: b, name: filename, contentType: contentType);
     } else {
-      return PickedImage(file: File(xfile.path as String), name: filename);
+      return PickedImage(
+        file: File(xfile.path as String),
+        name: filename,
+        contentType: contentType,
+      );
     }
+  }
+
+  static String _filenameFromXFile(dynamic xfile) {
+    final name = xfile.name;
+    if (name is String && name.trim().isNotEmpty) {
+      return name;
+    }
+    return (xfile.path as String).split('/').last;
+  }
+
+  static String _contentTypeFromXFile(dynamic xfile, String filename) {
+    final mimeType = xfile.mimeType;
+    if (mimeType is String && _isSupportedImageMime(mimeType)) {
+      return mimeType;
+    }
+    return _contentTypeFromFilename(filename);
+  }
+
+  static bool _isSupportedImageMime(String value) {
+    return value == 'image/jpeg' ||
+        value == 'image/png' ||
+        value == 'image/webp';
+  }
+
+  static String _contentTypeFromFilename(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (lower.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    return 'image/png';
   }
 }

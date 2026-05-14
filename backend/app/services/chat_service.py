@@ -1,8 +1,10 @@
+import asyncio
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.embeddings import embed_text
 from app.models.chat import ChatMessage, ChatSession
 from app.models.enums import ChatRole, ChatSessionType
 
@@ -29,6 +31,7 @@ async def create_analyse_session(
                 role=ChatRole.user,
                 content=user_content,
                 image_url=image_url,
+                embedding=await _embed_message(user_content),
                 metadata_={"question": question, "filename": metadata.get("filename")},
             )
         )
@@ -37,6 +40,7 @@ async def create_analyse_session(
                 session_id=session.id,
                 role=ChatRole.assistant,
                 content=assistant_content,
+                embedding=await _embed_message(assistant_content),
                 metadata_=metadata,
             )
         )
@@ -68,6 +72,7 @@ async def create_compare_session(
                 session_id=session.id,
                 role=ChatRole.user,
                 content=user_content,
+                embedding=await _embed_message(user_content),
                 metadata_={"question": question, "image_count": metadata.get("image_count")},
             )
         )
@@ -76,6 +81,7 @@ async def create_compare_session(
                 session_id=session.id,
                 role=ChatRole.assistant,
                 content=assistant_content,
+                embedding=await _embed_message(assistant_content),
                 metadata_=metadata,
             )
         )
@@ -91,3 +97,10 @@ def _title_from_question(question: str | None) -> str:
     if question and question.strip():
         return question.strip()[:80]
     return "Image analysis"
+
+
+async def _embed_message(content: str) -> list[float] | None:
+    try:
+        return await asyncio.to_thread(embed_text, content)
+    except Exception:
+        return None

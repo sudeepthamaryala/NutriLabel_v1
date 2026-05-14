@@ -25,6 +25,7 @@ services:
       - ./backend/credentials:/app/credentials:ro
       - ./models:/models
       - ./uploads:/uploads
+      - ./reference:/reference
     restart: unless-stopped
   db:
     image: pgvector/pgvector:pg16

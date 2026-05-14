@@ -1,4 +1,5 @@
 import logging
+from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
@@ -7,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.compare import ComparedProduct, CompareResponse, CompareVerdict
 from app.services import chat_service, storage_service
-from app.services.analyse_service import get_required_health_profile, ocr_and_parse_nutrition
+from app.services.analyse_service import _anonymous_profile, get_required_health_profile, ocr_and_parse_nutrition
 from app.services.inference_client import CompareInferenceResult, compare_nutrition_products
 
 logger = logging.getLogger(__name__)
@@ -16,12 +17,16 @@ logger = logging.getLogger(__name__)
 async def compare_images(
     *,
     db: AsyncSession,
-    current_user: User,
+    current_user: User | None,
     images: list[UploadFile],
     question: str | None,
     request_id: str,
 ) -> CompareResponse:
-    profile = await get_required_health_profile(db=db, current_user=current_user)
+    profile = (
+        await get_required_health_profile(db=db, current_user=current_user)
+        if current_user
+        else _anonymous_profile()
+    )
 
     products: list[ComparedProduct] = []
     ocr_metadata: list[dict] = []
@@ -46,6 +51,15 @@ async def compare_images(
         question=question,
         request_id=request_id,
     )
+
+    if current_user is None:
+        return CompareResponse(
+            session_id=uuid4(),
+            products=products,
+            best_product_index=comparison.best_product_index,
+            verdict=comparison.verdict,
+        )
+
     user_content = question.strip() if question and question.strip() else "Compare products"
     assistant_content = _assistant_content(comparison.verdict)
     stored_images = await _store_images_after_success(

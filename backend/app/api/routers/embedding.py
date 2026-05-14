@@ -1,9 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.api.deps import get_current_user
 from app.core.embeddings import EMBEDDING_DIMENSIONS, embed_text
+from app.models.user import User
 
 router = APIRouter(tags=["embedding"])
 
@@ -17,7 +19,7 @@ class EmbedResponse(BaseModel):
 
 
 @router.post("/embed", response_model=EmbedResponse)
-async def embed(data: EmbedRequest) -> EmbedResponse:
+async def embed(data: EmbedRequest, _current_user: User = Depends(get_current_user)) -> EmbedResponse:
     text = data.text.strip()
     if not text:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="text must not be empty")

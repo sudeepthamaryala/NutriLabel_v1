@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../models/chat.dart';
 import '../models/health_profile.dart';
@@ -137,12 +138,14 @@ class ApiService {
         multipart = MultipartFile.fromBytes(
           image.bytes!,
           filename: image.name,
+          contentType: MediaType.parse(image.contentType),
         );
       } else {
         // Mobile: use file path
         multipart = await MultipartFile.fromFile(
           image.file!.path,
           filename: image.name,
+          contentType: MediaType.parse(image.contentType),
         );
       }
       final formData = FormData.fromMap({
@@ -169,11 +172,16 @@ class ApiService {
       for (final img in images) {
         final MultipartFile multipart;
         if (kIsWeb) {
-          multipart = MultipartFile.fromBytes(img.bytes!, filename: img.name);
+          multipart = MultipartFile.fromBytes(
+            img.bytes!,
+            filename: img.name,
+            contentType: MediaType.parse(img.contentType),
+          );
         } else {
           multipart = await MultipartFile.fromFile(
             img.file!.path,
             filename: img.name,
+            contentType: MediaType.parse(img.contentType),
           );
         }
         fd.files.add(MapEntry('images', multipart));

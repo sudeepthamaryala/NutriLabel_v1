@@ -122,6 +122,32 @@ create table if not exists rag_chunks (
   constraint rag_chunks_text_not_blank check (length(trim(chunk_text)) > 0)
 );
 
+create table if not exists knowledge_chunks (
+  id uuid primary key default gen_random_uuid(),
+  source text not null,
+  source_url text,
+  page_number integer,
+  chunk_text text not null,
+  embedding vector(384) not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint knowledge_chunks_source_not_blank check (length(trim(source)) > 0),
+  constraint knowledge_chunks_text_not_blank check (length(trim(chunk_text)) > 0)
+);
+
+create table if not exists disease_knowledge_chunks (
+  id uuid primary key default gen_random_uuid(),
+  disease_tag text not null,
+  rule_code text not null,
+  evidence_text text not null,
+  chunk_text text not null,
+  embedding vector(384) not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint disease_knowledge_chunks_disease_not_blank check (length(trim(disease_tag)) > 0),
+  constraint disease_knowledge_chunks_evidence_not_blank check (length(trim(evidence_text)) > 0)
+);
+
 drop trigger if exists set_users_updated_at on users;
 create trigger set_users_updated_at
 before update on users
@@ -157,6 +183,24 @@ do $$
 begin
   create index if not exists idx_rag_chunks_embedding_hnsw
   on rag_chunks using hnsw (embedding vector_cosine_ops);
+exception
+  when undefined_object or feature_not_supported then null;
+end $$;
+create index if not exists idx_knowledge_chunks_source on knowledge_chunks(source);
+create index if not exists idx_knowledge_chunks_metadata_gin on knowledge_chunks using gin(metadata);
+do $$
+begin
+  create index if not exists idx_knowledge_chunks_embedding_hnsw
+  on knowledge_chunks using hnsw (embedding vector_cosine_ops);
+exception
+  when undefined_object or feature_not_supported then null;
+end $$;
+create index if not exists idx_disease_knowledge_chunks_disease_tag on disease_knowledge_chunks(disease_tag);
+create index if not exists idx_disease_knowledge_chunks_metadata_gin on disease_knowledge_chunks using gin(metadata);
+do $$
+begin
+  create index if not exists idx_disease_knowledge_chunks_embedding_hnsw
+  on disease_knowledge_chunks using hnsw (embedding vector_cosine_ops);
 exception
   when undefined_object or feature_not_supported then null;
 end $$;
